@@ -1,0 +1,5 @@
+|tuto_fpga
+pushl => led0.DATAIN
+led0 << pushl.DB_MAX_OUTPUT_PORT_TYPE
+
+
