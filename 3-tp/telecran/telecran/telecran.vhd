@@ -47,8 +47,32 @@ architecture rtl of telecran is
 			HDMI_TX_INT  : in std_logic
 		);
 	 end component;
-	 
-	component pll 
+
+	component hdmi_controler
+		generic (
+			h_res : natural := 720;
+			v_res : natural := 480;
+			h_fp : natural := 16;
+			h_sync : natural := 62;
+			h_bp : natural := 60;
+			v_fp : natural := 9;
+			v_sync : natural := 6;
+			v_bp : natural := 30
+		);
+		port (
+			i_clk : in std_logic;
+			i_rst_n : in std_logic;
+			o_hdmi_hs : out std_logic;
+			o_hdmi_vs : out std_logic;
+			o_hdmi_de : out std_logic;
+			o_pixel_en : out std_logic;
+			o_pixel_address : out natural range 0 to h_res * v_res - 1;
+			o_x_counter : out natural range 0 to h_res - 1;
+			o_y_counter : out natural range 0 to v_res - 1
+		);
+	end component;
+
+	component pll
 		port (
 			refclk : in std_logic;
 			rst : in std_logic;
@@ -62,6 +86,9 @@ architecture rtl of telecran is
 
 	signal s_clk_27 : std_logic;
 	signal s_rst_n : std_logic;	-- holds reset as long as pll is not locked
+
+	signal s_x_counter : natural range 0 to h_res - 1;
+	signal s_y_counter : natural range 0 to v_res - 1;
 begin
 	o_leds <= (others => '0');
 	o_de10_leds <= (others => '0');
@@ -84,4 +111,29 @@ begin
 			I2C_SDAT => io_hdmi_i2c_sda,
 			HDMI_TX_INT => i_hdmi_tx_int
 	 );
+
+	-- Generates HDMI synchronisation signals and pixel coordinates
+	hdmi_controler0 : component hdmi_controler
+		generic map (
+			h_res => h_res,
+			v_res => v_res
+		)
+		port map (
+			i_clk => s_clk_27,
+			i_rst_n => s_rst_n,
+			o_hdmi_hs => o_hdmi_tx_hs,
+			o_hdmi_vs => o_hdmi_tx_vs,
+			o_hdmi_de => o_hdmi_tx_de,
+			o_pixel_en => open,
+			o_pixel_address => open,
+			o_x_counter => s_x_counter,
+			o_y_counter => s_y_counter
+		);
+
+	o_hdmi_tx_clk <= s_clk_27;
+
+	-- Pixel color : red = x, green = y, blue = 0
+	o_hdmi_tx_d(23 downto 16) <= std_logic_vector(to_unsigned(s_x_counter mod 256, 8));
+	o_hdmi_tx_d(15 downto 8) <= std_logic_vector(to_unsigned(s_y_counter mod 256, 8));
+	o_hdmi_tx_d(7 downto 0) <= (others => '0');
 end architecture rtl;

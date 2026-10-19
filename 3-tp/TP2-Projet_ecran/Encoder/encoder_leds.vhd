@@ -30,8 +30,8 @@ begin
             o_value => s_value
         );
 
-    -- l'encodeur compte +2 par cran : on divise par 2 pour avoir 1 LED par cran
-    s_steps <= unsigned(s_value) / 2;
+    -- l'encodeur compte +1 par cran : 1 LED par cran
+    s_steps <= unsigned(s_value);
 
     -- la LED i est allumé si le nombre de crans est strictement supérieure à i
     gen_leds : for i in 0 to 9 generate
