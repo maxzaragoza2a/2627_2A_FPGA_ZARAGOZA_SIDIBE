@@ -50,14 +50,14 @@ architecture rtl of telecran is
 
 	component hdmi_controler
 		generic (
-			h_res : natural := 720;
-			v_res : natural := 480;
-			h_fp : natural := 16;
-			h_sync : natural := 62;
-			h_bp : natural := 60;
-			v_fp : natural := 9;
-			v_sync : natural := 6;
-			v_bp : natural := 30
+			h_res : positive := 720;
+			v_res : positive := 480;
+			h_sync : positive := 61;
+			h_fp : positive := 58;
+			h_bp : positive := 18;
+			v_sync : positive := 5;
+			v_fp : positive := 30;
+			v_bp : positive := 9
 		);
 		port (
 			i_clk : in std_logic;
