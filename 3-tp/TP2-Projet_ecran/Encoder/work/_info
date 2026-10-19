@@ -1,0 +1,98 @@
+m255
+K4
+z2
+!s11e vcom 2020.1 2020.02, Feb 28 2020
+13
+!s112 1.1
+!i10d 8192
+!i10e 25
+!i10f 100
+cModel Technology
+Z0 dC:/Users/maxza/2627_2A_FPGA_ZARAGOZA_SIDIBE/3-tp/TP2-Projet_ecran/Encoder
+Eencoder
+Z1 w1792392795
+Z2 DPx4 ieee 11 numeric_std 0 22 aU^R8eGcicLcUFIaBQSL>3
+Z3 DPx3 std 6 textio 0 22 zE1`LPoLg^DX3Oz^4Fj1K3
+Z4 DPx4 ieee 14 std_logic_1164 0 22 cVAk:aDinOX8^VGI1ekP<3
+!i122 0
+R0
+Z5 8encoder.vhd
+Z6 Fencoder.vhd
+l0
+L5 1
+VGOaSn]H=Lo`db`XOnaiMK0
+!s100 m5gKMnjz]_0n09gQ7_PAU1
+Z7 OV;C;2020.1;71
+33
+Z8 !s110 1792394524
+!i10b 1
+Z9 !s108 1792394523.000000
+Z10 !s90 -reportprogress|300|-2008|encoder.vhd|
+Z11 !s107 encoder.vhd|
+!i113 1
+Z12 o-2008
+Z13 tExplicit 1 CvgOpt 0
+Artl
+R2
+R3
+R4
+Z14 DEx4 work 7 encoder 0 22 GOaSn]H=Lo`db`XOnaiMK0
+!i122 0
+l31
+L18 51
+Vbn2V`7dL6EU?G@QCKi8kW0
+!s100 iEZ=3e00aM`GjJ<0YIGHc0
+R7
+33
+R8
+!i10b 1
+R9
+R10
+R11
+!i113 1
+R12
+R13
+Eencoder_tb
+Z15 w1792393909
+R2
+R3
+R4
+!i122 1
+R0
+Z16 8encoder_tb.vhd
+Z17 Fencoder_tb.vhd
+l0
+L5 1
+VVIKO;2_I=Yh?[i>TCjm7>1
+!s100 8dJJ[Vb3lObjWUT3RZmEO3
+R7
+33
+R8
+!i10b 1
+Z18 !s108 1792394524.000000
+Z19 !s90 -reportprogress|300|-2008|encoder_tb.vhd|
+!s107 encoder_tb.vhd|
+!i113 1
+R12
+R13
+Atb
+R14
+R2
+R3
+R4
+DEx4 work 10 encoder_tb 0 22 VIKO;2_I=Yh?[i>TCjm7>1
+!i122 1
+l20
+L8 88
+VBQXe7amJdA^TU?aWOzmO<0
+!s100 J1VM?EJR^OEIQjWIh0l550
+R7
+33
+R8
+!i10b 1
+R18
+R19
+Z20 !s107 encoder_tb.vhd|
+!i113 1
+R12
+R13
