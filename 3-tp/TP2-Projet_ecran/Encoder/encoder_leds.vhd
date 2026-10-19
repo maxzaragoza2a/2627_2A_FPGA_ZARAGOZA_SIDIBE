@@ -3,7 +3,7 @@ use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
 -- Top-level de test : affiche la valeur de l'encodeur gauche en barre de LED
--- (valeur 0 : aucune LED, 1 : LED0, 2 : LED0 et LED1, ..., 10 ou plus : toutes les LED)
+-- (0 cran : aucune LED, 1 cran : LED0, 2 crans : LED0 et LED1, ..., 10 crans ou plus : toutes les LED)
 entity encoder_leds is
     port (
         i_clk_50 : in std_logic;
@@ -16,6 +16,7 @@ end entity encoder_leds;
 
 architecture rtl of encoder_leds is
     signal s_value : std_logic_vector(9 downto 0);
+    signal s_steps : unsigned(9 downto 0);
 begin
     encoder0 : entity work.encoder
         generic map (
@@ -29,8 +30,11 @@ begin
             o_value => s_value
         );
 
-    -- la LED i est allumée si la valeur est strictement supérieure à i
+    -- l'encodeur compte +2 par cran : on divise par 2 pour avoir 1 LED par cran
+    s_steps <= unsigned(s_value) / 2;
+
+    -- la LED i est allumée si le nombre de crans est strictement supérieur à i
     gen_leds : for i in 0 to 9 generate
-        o_leds(i) <= '1' when unsigned(s_value) > i else '0';
+        o_leds(i) <= '1' when s_steps > i else '0';
     end generate;
 end architecture rtl;
