@@ -4,7 +4,11 @@ use ieee.numeric_std.all;
 
 entity encoder is
     generic (
-        g_width : natural := 10
+        g_width : natural := 10;
+        -- g_saturate = false : la valeur reboucle (0 -> 2**g_width-1 et inversement)
+        -- g_saturate = true  : la valeur reste bloquée entre 0 et g_max
+        g_saturate : boolean := false;
+        g_max : natural := 1023
     );
     port (
         i_clk : in std_logic;
@@ -57,9 +61,13 @@ begin
             r_value <= (others => '0');
         elsif (rising_edge(i_clk)) then
             if ((s_a_rise = '1' and r_b_d1 = '0') or (s_a_fall = '1' and r_b_d1 = '1')) then
-                r_value <= r_value + 1;
+                if (not g_saturate) or (r_value < g_max) then
+                    r_value <= r_value + 1;
+                end if;
             elsif ((s_b_rise = '1' and r_a_d1 = '0') or (s_b_fall = '1' and r_a_d1 = '1')) then
-                r_value <= r_value - 1;
+                if (not g_saturate) or (r_value > 0) then
+                    r_value <= r_value - 1;
+                end if;
             end if;
         end if;
     end process;
