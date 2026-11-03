@@ -9,7 +9,7 @@ vcom -2008 encoder_rebonds_tb.vhd
 
 vsim work.encoder_rebonds_tb
 
-add wave -divider "Entrées (avec rebonds)"
+add wave -divider "Entrees (avec rebonds)"
 add wave i_clk
 add wave i_rst_n
 add wave i_ch_a

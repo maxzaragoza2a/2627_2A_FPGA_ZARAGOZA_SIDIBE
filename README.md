@@ -12,7 +12,9 @@ L'énoncé est dans [`3-tp/fpga_tp.md`](3-tp/fpga_tp.md).
 - [Organisation du dépôt](#organisation-du-dépôt)
 - [Séance 1 (29/09/2026) — TP1 : Tutoriel Quartus](#séance-1-29092026--tp1--tutoriel-quartus)
 - [Séance 2 (19/10/2026) — Projet Écran magique : encodeurs](#séance-2-19102026--projet-écran-magique--encodeurs)
-- [Séance 3 (03/11/2026) — Projet Écran magique : contrôleur HDMI](#séance-3-03112026--projet-écran-magique--contrôleur-hdmi)
+- [Séance 3 (03/11/2026) — Projet Écran magique : contrôleur HDMI et déplacement d'un pixel](#séance-3-03112026--projet-écran-magique--contrôleur-hdmi-et-déplacement-dun-pixel)
+  - [Partie 1 — Contrôleur HDMI](#partie-1--contrôleur-hdmi)
+  - [Partie 2 — Déplacement d'un pixel](#partie-2--déplacement-dun-pixel)
 - [Reste à faire](#reste-à-faire)
 - [Annexe : simuler et tester](#annexe--simuler-et-tester)
 
@@ -30,7 +32,7 @@ L'énoncé est dans [`3-tp/fpga_tp.md`](3-tp/fpga_tp.md).
 ├── TP2-Projet_ecran/              projet Écran magique (simulations)
 │   ├── Encoder/                   encodeur : VHDL, testbench, .do, captures
 │   ├── HDMI/                      contrôleur HDMI : testbench, .do, captures
-│   └── Deplacement_pixel/         déplacement d'un pixel avec les encodeurs
+│   └── Deplacement_pixel/         déplacement d'un pixel : top telecran.vhd, schéma, vidéo
 └── telecran/telecran/             projet Quartus du télécran (top : telecran.vhd)
 ```
 
@@ -157,9 +159,11 @@ Le contrôleur HDMI du TD 3 ([`hdmi_controler.vhd`](3-tp/telecran/telecran/hdmi_
 
 ---
 
-## Séance 3 (03/11/2026) — Projet Écran magique : contrôleur HDMI
+## Séance 3 (03/11/2026) — Projet Écran magique : contrôleur HDMI et déplacement d'un pixel
 
-### Q1 — Simulation du contrôleur
+### Partie 1 — Contrôleur HDMI
+
+#### Q1 — Simulation du contrôleur
 
 Simulation dans ModelSim avec `do hdmi_controler.do` (dossier `3-tp/TP2-Projet_ecran/HDMI`). Timings mesurés :
 
@@ -188,7 +192,7 @@ Simulation dans ModelSim avec `do hdmi_controler.do` (dossier `3-tp/TP2-Projet_e
 - `r_v_active` passe à 1 vers **310 µs**, soit 36 lignes × 8,58 µs. C'est le début de la zone visible (`v_start` = 35). À partir de là, DE et `o_pixel_en` pulsent une fois par ligne, et `o_y_counter` s'incrémente à chaque ligne.
 - Au curseur (135 µs) : `r_h_count` = 634 donne `o_x_counter` = 634 − 120 = **514**. `r_v_count` = 15 est encore dans le blanking, donc `y` = 0 et `o_pixel_address` = 514 + 0 × 720 = 514. `x` continue de compter pendant le blanking vertical, mais ce n'est pas un problème car `o_pixel_en` = 0.
 
-### Q2/Q3/Q4 — Intégration dans le top
+#### Q2/Q3/Q4 — Intégration dans le top
 
 Dans [`telecran.vhd`](3-tp/telecran/telecran/telecran.vhd) :
 - le composant `hdmi_controler` est instancié avec l'horloge à 27 MHz et le reset fournis par la PLL (`s_clk_27`, `s_rst_n` = `locked`) ;
@@ -201,7 +205,7 @@ o_hdmi_tx_d(15 downto 8)  <= std_logic_vector(to_unsigned(s_y_counter mod 256, 8
 o_hdmi_tx_d(7 downto 0)   <= (others => '0');                                       -- bleu  = 0
 ```
 
-### Q5 — À quels bits correspond chaque couleur ?
+#### Q5 — À quels bits correspond chaque couleur ?
 
 | Bits de `o_hdmi_tx_d` | Composante |
 |:---:|:---:|
@@ -215,13 +219,13 @@ L'image attendue est la suivante :
 - le vert augmente vers le bas et repart de 0 à y = 256 (environ 2 bandes) ;
 - les zones où rouge et vert se mélangent virent au jaune.
 
-### Correction de la contrainte d'horloge
+#### Correction de la contrainte d'horloge
 
 Le fichier [`telecran.sdc`](3-tp/telecran/telecran/telecran.sdc) déclarait l'horloge sur `FPGA_CLK1_50`, un port qui n'existe pas dans notre top. Quartus n'avait donc aucune contrainte d'horloge. L'horloge est maintenant déclarée sur `i_clk_50`, et `derive_pll_clocks` contraint aussi l'horloge de 27 MHz.
 
 **Résultat de la compilation :** 0 erreur, 0 warning critique, 99 ALM utilisés (moins de 1 %). Les marges de setup sont positives : 15,0 ns sur `i_clk_50` et 33,3 ns sur l'horloge de la PLL.
 
-### Q6 — Test sur carte
+#### Q6 — Test sur carte
 
 Le test a été fait sur la carte, avec l'adaptateur HDMI→USB et VLC (capture DirectShow) :
 
@@ -235,11 +239,101 @@ Le test a été fait sur la carte, avec l'adaptateur HDMI→USB et VLC (capture 
 - Les bandes noires à gauche et à droite viennent de VLC, pas du FPGA : VLC affiche le 720×480 au format 4:3 du standard 480p, dont les pixels ne sont pas carrés.
 - 📝 À confirmer : un appui sur `KEY0` réinitialise la PLL et le contrôleur, donc l'image doit disparaître puis revenir à l'identique.
 
+### Partie 2 — Déplacement d'un pixel
+
+Objectif : afficher un seul pixel blanc sur fond noir. L'encodeur gauche le déplace horizontalement et l'encodeur droit verticalement. L'énoncé indique « gauche » pour les deux, c'est une coquille.
+
+Code : [`Deplacement_pixel/telecran.vhd`](3-tp/TP2-Projet_ecran/Deplacement_pixel/telecran.vhd), une copie du top de la partie HDMI modifiée pour cette étape. Il utilise [`encoder.vhd`](3-tp/TP2-Projet_ecran/Encoder/encoder.vhd).
+
+#### Principe
+
+Pendant le balayage, le contrôleur HDMI fournit les coordonnées (`s_x_counter`, `s_y_counter`) du pixel en cours d'affichage. Il suffit de les comparer à la position donnée par les encodeurs :
+- si `s_x_counter = x_encodeur` **et** `s_y_counter = y_encodeur`, le pixel est **blanc** (`x"FFFFFF"`) ;
+- sinon, il est **noir** (`x"000000"`).
+
+#### Q1 — Modifications de `telecran.vhd`
+
+- **Deux instances de `encoder`** : `encoder_x` sur l'encodeur gauche et `encoder_y` sur l'encodeur droit, en 10 bits.
+- **Même horloge que le contrôleur HDMI** : les encodeurs tournent sur `s_clk_27` / `s_rst_n` (27 MHz, PLL). Les positions et les compteurs HDMI sont ainsi dans le même domaine d'horloge, sans problème de passage d'un domaine à l'autre au moment de la comparaison.
+- **Le pixel reste dans l'écran** : `encoder.vhd` a reçu deux nouveaux generics, `g_saturate` et `g_max`. Ici, x est bloqué entre 0 et 719 et y entre 0 et 479. Sans ça, en tournant à gauche depuis 0, la valeur passait à 1023 et le pixel disparaissait hors de l'écran.
+- **Couleur registrée** (`r_pixel`) : la couleur sort un cycle plus tard, donc en phase avec `o_hdmi_tx_de`, qui est lui-même registré dans le contrôleur (voir l'observation de la Q1 de la partie 1). Sans ce registre, le pixel serait décalé d'une colonne, et invisible à x = 0.
+- **LED de débogage** : x s'affiche en binaire sur les 10 LED de la mezzanine (`o_leds`), y sur les 8 LED de la DE10-Nano (`o_de10_leds`).
+
+```vhdl
+process(s_clk_27, s_rst_n)
+begin
+	if (s_rst_n = '0') then
+		r_pixel <= (others => '0');
+	elsif rising_edge(s_clk_27) then
+		if (s_x_counter = to_integer(unsigned(s_enc_x))) and (s_y_counter = to_integer(unsigned(s_enc_y))) then
+			r_pixel <= x"FFFFFF";
+		else
+			r_pixel <= x"000000";
+		end if;
+	end if;
+end process;
+
+o_hdmi_tx_d <= r_pixel;
+```
+
+#### Schéma RTL généré par Quartus
+
+![RTL Viewer : déplacement d'un pixel](3-tp/TP2-Projet_ecran/Deplacement_pixel/img/schema_deplacement_pixel.png)
+
+**Lecture du schéma :**
+- `encoder_x` (voies `i_left_ch_a/b`) et `encoder_y` (voies `i_right_ch_a/b`) reçoivent tous les deux l'horloge `outclk_0` et le signal `locked` de la PLL.
+- Leurs sorties vont vers les LED (`o_leds[9..0]` et `o_de10_leds[7..0]`) et vers deux comparateurs :
+  - `Equal0` compare x à `o_x_counter` ;
+  - `Equal1` compare y à `o_y_counter`. Ce compteur ne fait que 9 bits, Quartus complète donc le 10e bit par un 0 (symbole de masse).
+- La porte ET (`process_0`) combine les deux égalités. Sa sortie entre dans le registre `r_pixel[23..0]` (24 bits identiques, donc blanc ou noir), qui pilote `o_hdmi_tx_d`. Le reset asynchrone (CLRN) de ce registre vient de `locked`.
+- `i_left_pb` et `i_right_pb` (boutons des encodeurs) ne sont reliés à rien pour l'instant. L'un d'eux servira à l'effacement.
+
+#### Premier test sur carte : déplacement erratique
+
+Le premier essai affichait bien le pixel, mais son déplacement était **erratique** : il sautait de plusieurs positions et revenait parfois en arrière. L'enseignant a identifié la cause : les **rebonds** des contacts mécaniques des encodeurs.
+
+**Explication :** à chaque cran, A et B oscillent plusieurs fois avant de se stabiliser. À 27 MHz, chaque oscillation est vue comme un vrai front. Avec la règle de comptage de l'énoncé, ces rebonds ne s'annulent pas. Par exemple, pour un rebond sur A pendant une rotation à droite (B = 0) :
+- front montant de A : +1 ;
+- front descendant de A : aucune règle ne s'applique (ni incrément ni décrément) ;
+- front montant suivant : encore +1.
+
+Chaque rebond ajoute donc un pas en trop.
+
+#### Correction : filtre anti-rebond
+
+Deux étages ont été ajoutés dans [`encoder.vhd`](3-tp/TP2-Projet_ecran/Encoder/encoder.vhd), avant le détecteur de fronts :
+1. **Un synchroniseur à 2 bascules** (`r_a_meta` → `r_a_sync`) : A et B sont asynchrones par rapport à l'horloge, ce qui évite la métastabilité. Avant, une seule bascule faisait ce travail.
+2. **Un filtre de stabilité** :
+   - un compteur (`r_a_cnt`) s'incrémente tant que l'entrée synchronisée diffère de la valeur filtrée (`r_a_d1`) ;
+   - **chaque rebond le remet à 0** ;
+   - la valeur filtrée ne change que si l'entrée est restée stable pendant `g_debounce` cycles.
+
+Le détecteur de fronts travaille ensuite sur la valeur filtrée. Dans le top, `g_debounce = 27_000`, soit **1 ms à 27 MHz** : c'est plus long qu'un rebond, mais bien plus court que le temps entre deux crans, même en tournant vite. Par défaut, `g_debounce = 0` (pas de filtre), donc le testbench d'origine de la séance 2 passe toujours.
+
+**Simulation** : [`encoder_rebonds_tb.vhd`](3-tp/TP2-Projet_ecran/Encoder/encoder_rebonds_tb.vhd), à lancer avec `do encoder_rebonds.do`. Les mêmes signaux A/B, avec 3 rebonds sur A et 1 sur B à chaque front (120 ns chacun), sont envoyés à un encodeur sans filtre et à un encodeur avec filtre (`g_debounce` = 50 cycles = 1 µs) :
+
+| Après… | Attendu | Sans filtre | Avec filtre |
+|---|:---:|:---:|:---:|
+| 1 cycle à droite | 2 | 6 | 2 ✅ |
+| 2 cycles à droite | 4 | 12 | 4 ✅ |
+| 4 cycles à droite | 8 | **24** | 8 ✅ |
+| puis 4 cycles à gauche | 0 | 0 | 0 ✅ |
+
+Sans filtre, le compteur va **3 fois trop loin**. Avec le filtre, la valeur est exacte à chaque cycle.
+
+**Compilation** : 0 erreur, 171 ALM (moins de 1 %). Les marges de setup sont positives : 15,0 ns sur `i_clk_50` et 28,3 ns sur l'horloge à 27 MHz.
+
+#### Q2 — Test sur carte après correction
+
+▶️ [Vidéo du test de déplacement du pixel](3-tp/TP2-Projet_ecran/Deplacement_pixel/img/test_deplacement_pixel.mp4) (GitHub ne lit pas la vidéo dans la page : cliquer sur le lien puis sur *View raw* pour la télécharger)
+
+> 📝 À compléter : observations de la vidéo (le point avance régulièrement à chaque cran, sens horizontal/vertical corrects, blocage aux bords, retour au point de départ après N crans aller-retour, effet de KEY0).
+
 ---
 
 ## Reste à faire
 
-- [ ] Déplacement d'un pixel (encodeur gauche pour x, encodeur droit pour y)
+- [x] Déplacement d'un pixel (encodeur gauche pour x, encodeur droit pour y), avec anti-rebond
 - [ ] Mémorisation : Q1 (mémoire dual-port), Q2 (schéma), instanciation de `dpram`
 - [ ] Effacement : Q1 (méthode), implémentation
 
@@ -250,6 +344,7 @@ Le test a été fait sur la carte, avec l'adaptateur HDMI→USB et VLC (capture 
 **Simulation (ModelSim) :** se placer dans le dossier du composant et lancer le script `.do` :
 ```
 cd 3-tp/TP2-Projet_ecran/Encoder   ->  do encoder.do
+cd 3-tp/TP2-Projet_ecran/Encoder   ->  do encoder_rebonds.do   (anti-rebond)
 cd 3-tp/TP2-Projet_ecran/HDMI      ->  do hdmi_controler.do
 ```
 

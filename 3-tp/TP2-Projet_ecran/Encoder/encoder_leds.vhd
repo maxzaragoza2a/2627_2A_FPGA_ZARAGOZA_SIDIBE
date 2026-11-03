@@ -33,7 +33,7 @@ begin
     -- l'encodeur compte +1 par cran : 1 LED par cran
     s_steps <= unsigned(s_value);
 
-    -- la LED i est allumé si le nombre de crans est strictement supérieure à i
+    -- la LED i est allume si le nombre de crans est strictement superieure a i
     gen_leds : for i in 0 to 9 generate
         o_leds(i) <= '1' when s_steps > i else '0';
     end generate;

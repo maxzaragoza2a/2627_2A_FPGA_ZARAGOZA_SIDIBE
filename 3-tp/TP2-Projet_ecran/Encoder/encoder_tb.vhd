@@ -8,7 +8,7 @@ end entity encoder_tb;
 architecture tb of encoder_tb is
     constant c_width : natural := 10;
     constant c_clk_period : time := 20 ns;   -- 50 MHz
-    constant c_step : time := 200 ns;        -- durée entre deux changements de A ou B
+    constant c_step : time := 200 ns;        -- duree entre deux changements de A ou B
 
     signal i_clk : std_logic := '0';
     signal i_rst_n : std_logic := '0';
@@ -65,7 +65,7 @@ begin
         wait for c_step;
         check(0);
 
-        -- 4 cycles à droite : +2 par cycle
+        -- 4 cycles a droite : +2 par cycle
         for i in 1 to 4 loop
             turn_right;
         end loop;
@@ -75,7 +75,7 @@ begin
         wait for 5 * c_step;
         check(8);
 
-        -- 5 cycles à gauche : -2 par cycle, passage sous 0 -> 1022
+        -- 5 cycles a gauche : -2 par cycle, passage sous 0 -> 1022
         for i in 1 to 5 loop
             turn_left;
         end loop;

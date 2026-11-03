@@ -1,4 +1,4 @@
-# Simulation du contrôleur HDMI (d'après la correction du TD 3)
+# Simulation du controleur HDMI (d'apres la correction du TD 3)
 # Dans ModelSim : cd vers le dossier HDMI, puis "do hdmi_controler.do"
 
 quit -sim

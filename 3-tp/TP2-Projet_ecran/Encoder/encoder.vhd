@@ -6,7 +6,7 @@ entity encoder is
     generic (
         g_width : natural := 10;
         -- g_saturate = false : la valeur reboucle (0 -> 2**g_width-1 et inversement)
-        -- g_saturate = true  : la valeur reste bloquée entre 0 et g_max
+        -- g_saturate = true  : la valeur reste bloquee entre 0 et g_max
         g_saturate : boolean := false;
         g_max : natural := 1023;
         -- Anti-rebond : un changement de A ou B n'est pris en compte que s'il
@@ -30,11 +30,11 @@ architecture rtl of encoder is
     signal r_b_meta : std_logic := '0';
     signal r_b_sync : std_logic := '0';
 
-    -- Compteurs de stabilité de l'anti-rebond
+    -- Compteurs de stabilite de l'anti-rebond
     signal r_a_cnt : natural range 0 to g_debounce := 0;
     signal r_b_cnt : natural range 0 to g_debounce := 0;
 
-    -- Détecteur de fronts : d1 = valeur filtrée, d2 = valeur filtrée au cycle précédent
+    -- Detecteur de fronts : d1 = valeur filtree, d2 = valeur filtree au cycle precedent
     signal r_a_d1 : std_logic := '0';
     signal r_a_d2 : std_logic := '0';
     signal r_b_d1 : std_logic := '0';
@@ -48,7 +48,7 @@ architecture rtl of encoder is
     signal r_value : unsigned(g_width-1 downto 0) := (others => '0');
 begin
 
-    -- Synchronisation, anti-rebond, puis mémorisation pour la détection de fronts
+    -- Synchronisation, anti-rebond, puis memorisation pour la detection de fronts
     process(i_clk, i_rst_n)
     begin
         if (i_rst_n = '0') then
@@ -68,8 +68,8 @@ begin
             r_b_meta <= i_ch_b;
             r_b_sync <= r_b_meta;
 
-            -- Voie A : la valeur filtrée ne change que si l'entrée est restée
-            -- différente pendant g_debounce cycles. Un rebond remet le compteur à 0.
+            -- Voie A : la valeur filtree ne change que si l'entree est restee
+            -- differente pendant g_debounce cycles. Un rebond remet le compteur a 0.
             if (r_a_sync = r_a_d1) then
                 r_a_cnt <= 0;
             elsif (r_a_cnt = g_debounce) then
@@ -79,7 +79,7 @@ begin
                 r_a_cnt <= r_a_cnt + 1;
             end if;
 
-            -- Voie B : même principe
+            -- Voie B : mAame principe
             if (r_b_sync = r_b_d1) then
                 r_b_cnt <= 0;
             elsif (r_b_cnt = g_debounce) then

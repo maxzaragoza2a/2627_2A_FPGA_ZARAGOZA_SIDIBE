@@ -10,6 +10,6 @@ end entity tuto_fpga;
 
 architecture rtl of tuto_fpga is
 begin
-    --- pushl étant à l'état haut de base, on assigne à la led son "inverse" pour qu'elle soit éteinte par défaut
+    --- pushl etant a l'etat haut de base, on assigne a la led son "inverse" pour qu'elle soit eteinte par defaut
     led0 <= not pushl;  
 end architecture rtl;

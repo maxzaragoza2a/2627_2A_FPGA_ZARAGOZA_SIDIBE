@@ -7,13 +7,13 @@ vcom -2008 encoder_tb.vhd
 
 vsim work.encoder_tb
 
-add wave -divider "Entrées"
+add wave -divider "Entrees"
 add wave i_clk
 add wave i_rst_n
 add wave i_ch_a
 add wave i_ch_b
 
-add wave -divider "Détecteur de fronts"
+add wave -divider "Detecteur de fronts"
 add wave dut/r_a_d1
 add wave dut/r_a_d2
 add wave dut/s_a_rise

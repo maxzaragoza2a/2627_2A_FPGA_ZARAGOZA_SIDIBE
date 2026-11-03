@@ -13,7 +13,7 @@ architecture rtl of led_blink_chenillard is
     signal r_led : std_logic_vector(9 downto 0) := "0000000011";
     signal r_led_enable : std_logic := '0';
 begin
-    --- compteur : génère une impulsion r_led_enable d'un cycle toutes les 5 000 001 périodes d'horloge (~10 Hz à 50 MHz)
+    --- compteur : genere une impulsion r_led_enable d'un cycle toutes les 5 000 001 periodes d'horloge (~10 Hz a 50 MHz)
     process(i_clk, i_rst_n)
         variable counter : natural range 0 to 5000000 := 0;
     begin
