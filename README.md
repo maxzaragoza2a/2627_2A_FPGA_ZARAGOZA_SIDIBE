@@ -327,7 +327,7 @@ Sans filtre, le compteur va **3 fois trop loin**. Avec le filtre, la valeur est 
 
 ▶️ [Vidéo du test de déplacement du pixel](3-tp/TP2-Projet_ecran/Deplacement_pixel/img/test_deplacement_pixel.mp4) (GitHub ne lit pas la vidéo dans la page : cliquer sur le lien puis sur *View raw* pour la télécharger)
 
-> 📝 À compléter : observations de la vidéo (le point avance régulièrement à chaque cran, sens horizontal/vertical corrects, blocage aux bords, retour au point de départ après N crans aller-retour, effet de KEY0).
+> 📝 Observations de la vidéo (le point avance régulièrement à chaque cran, sens horizontal/vertical corrects, blocage aux bords, retour au point de départ après N crans aller-retour, effet de KEY0).
 
 ---
 
