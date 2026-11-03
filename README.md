@@ -12,10 +12,12 @@ L'énoncé est dans [`3-tp/fpga_tp.md`](3-tp/fpga_tp.md).
 - [Organisation du dépôt](#organisation-du-dépôt)
 - [Séance 1 (29/09/2026) — TP1 : Tutoriel Quartus](#séance-1-29092026--tp1--tutoriel-quartus)
 - [Séance 2 (19/10/2026) — Projet Écran magique : encodeurs](#séance-2-19102026--projet-écran-magique--encodeurs)
-- [Séance 3 (03/11/2026) — Projet Écran magique : contrôleur HDMI et déplacement d'un pixel](#séance-3-03112026--projet-écran-magique--contrôleur-hdmi-et-déplacement-dun-pixel)
+- [Séance 3 (03/11/2026) — Projet Écran magique : contrôleur HDMI, déplacement d'un pixel et mémorisation](#séance-3-03112026--projet-écran-magique--contrôleur-hdmi-déplacement-dun-pixel-et-mémorisation)
   - [Partie 1 — Contrôleur HDMI](#partie-1--contrôleur-hdmi)
   - [Partie 2 — Déplacement d'un pixel](#partie-2--déplacement-dun-pixel)
-- [Reste à faire](#reste-à-faire)
+  - [Partie 3 — Mémorisation](#partie-3--mémorisation)
+- [Séance 4 — Projet Écran magique : effacement](#séance-4--projet-écran-magique--effacement)
+- [Suivi des questions de l'énoncé](#suivi-des-questions-de-lénoncé)
 - [Annexe : simuler et tester](#annexe--simuler-et-tester)
 
 ## Organisation du dépôt
@@ -32,7 +34,8 @@ L'énoncé est dans [`3-tp/fpga_tp.md`](3-tp/fpga_tp.md).
 ├── TP2-Projet_ecran/              projet Écran magique (simulations)
 │   ├── Encoder/                   encodeur : VHDL, testbench, .do, captures
 │   ├── HDMI/                      contrôleur HDMI : testbench, .do, captures
-│   └── Deplacement_pixel/         déplacement d'un pixel : top telecran.vhd, schéma, vidéo
+│   ├── Deplacement_pixel/         déplacement d'un pixel : top telecran.vhd, schéma, vidéo
+│   └── Memorisation/              mémorisation : top telecran.vhd avec framebuffer, testbench
 └── telecran/telecran/             projet Quartus du télécran (top : telecran.vhd)
 ```
 
@@ -159,7 +162,7 @@ Le contrôleur HDMI du TD 3 ([`hdmi_controler.vhd`](3-tp/telecran/telecran/hdmi_
 
 ---
 
-## Séance 3 (03/11/2026) — Projet Écran magique : contrôleur HDMI et déplacement d'un pixel
+## Séance 3 (03/11/2026) — Projet Écran magique : contrôleur HDMI, déplacement d'un pixel et mémorisation
 
 ### Partie 1 — Contrôleur HDMI
 
@@ -329,13 +332,188 @@ Sans filtre, le compteur va **3 fois trop loin**. Avec le filtre, la valeur est 
 
 > 📝 Observations de la vidéo (le point avance régulièrement à chaque cran, sens horizontal/vertical corrects, blocage aux bords, retour au point de départ après N crans aller-retour, effet de KEY0).
 
+#### Q3 — Démonstration à l'enseignant
+
+L'enseignant a vu le premier essai : c'est lui qui a repéré le problème des rebonds.
+
+> 📝 À confirmer : validation de la version avec anti-rebond.
+
+### Partie 3 — Mémorisation
+
+Objectif : garder affichés les pixels déjà parcourus par le stylet, comme sur un vrai écran magique. On utilise pour ça une mémoire d'image (*framebuffer*).
+
+Code : [`Memorisation/telecran.vhd`](3-tp/TP2-Projet_ecran/Memorisation/telecran.vhd), une copie du top de la partie 2, avec les encodeurs, l'anti-rebond et le blocage dans l'écran. La mémoire est [`dpram.vhd`](3-tp/telecran/telecran/dpram.vhd), fournie.
+
+#### Q1 — Qu'est-ce qu'une mémoire *dual-port* ?
+
+Une mémoire **dual-port** (double port) possède **deux ports d'accès indépendants**, A et B. Chacun a sa propre horloge, son adresse, son entrée de données, son signal d'écriture (`we`) et sa sortie de données. Les deux ports accèdent **en même temps** au même tableau mémoire : on peut écrire par un port pendant qu'on lit par l'autre, sans que l'un attende l'autre.
+
+Ici, c'est exactement ce qu'il faut :
+- le **port A** sert au stylet, qui écrit à la position des encodeurs ;
+- le **port B** sert au contrôleur HDMI, qui lit l'image en continu, 60 fois par seconde.
+
+Avec une mémoire simple port, il faudrait partager un seul port entre les deux, et l'affichage serait perturbé à chaque écriture.
+
+Dans `dpram.vhd`, la lecture est **synchrone** : la donnée sort sur `o_q_a` / `o_q_b` **un cycle d'horloge après** que l'adresse a été présentée.
+
+#### Q2 — Schéma
+
+```mermaid
+flowchart LR
+    EG["Encodeur gauche"] --> EX["encoder_x<br/>x : 0 à 719"]
+    ED["Encodeur droit"] --> EY["encoder_y<br/>y : 0 à 479"]
+    EX --> AA["adresse A = x + y × 720"]
+    EY --> AA
+    AA --> RAM[("dpram<br/>345 600 × 1 bit")]
+    UN["donnée A = 1<br/>we A = 1"] --> RAM
+    HDMI["hdmi_controler"] -- "o_pixel_address" --> RAM
+    RAM -- "q B (1 bit)" --> COL["o_hdmi_tx_d =<br/>q B recopié sur 24 bits"]
+    HDMI -- "HS / VS / DE" --> ADV["ADV7513"]
+    COL --> ADV
+```
+
+- **1 bit par pixel** : un pixel est soit dessiné (1, blanc), soit vide (0, noir). Il faut 720 × 480 = 345 600 bits, qui tiennent dans 43 blocs mémoire M10K, soit 8 % du FPGA. En 24 bits par pixel, il faudrait 8,3 Mbits : plus que tout le FPGA (5,6 Mbits).
+- **Port A** : il écrit un `1` en permanence à l'adresse du stylet. Quand le stylet se déplace, l'ancienne case garde son `1` : c'est ce qui laisse la trace.
+- **Port B** : en lecture seule (`we_b = '0'`), à l'adresse `o_pixel_address` du contrôleur HDMI.
+- **Même formule d'adresse** des deux côtés (`x + y × 720`, celle du contrôleur). Sinon, on n'écrirait pas sur le pixel qu'on lit.
+- **Même horloge** (27 MHz) sur les deux ports, pour rester dans un seul domaine d'horloge.
+
+#### Q3 — Instanciation de `dpram`
+
+```vhdl
+-- Adresse d'ecriture : meme convention que le controleur HDMI
+s_wr_addr <= to_integer(unsigned(s_enc_x)) + to_integer(unsigned(s_enc_y)) * h_res;
+
+framebuffer : entity work.dpram
+	generic map (
+		mem_size => h_res * v_res,
+		data_width => 1
+	)
+	port map (
+		i_clk_a => s_clk_27,
+		i_addr_a => s_wr_addr,
+		i_data_a => "1",
+		i_we_a => '1',
+		o_q_a => open,
+
+		i_clk_b => s_clk_27,
+		i_addr_b => s_rd_addr,      -- = o_pixel_address du controleur
+		i_data_b => "0",
+		i_we_b => '0',
+		o_q_b => s_rd_data
+	);
+```
+
+La sortie `o_pixel_address` du contrôleur HDMI, laissée à `open` jusqu'ici, est maintenant reliée à `s_rd_addr`. Les sorties `o_x_counter` / `o_y_counter` ne servent plus : la comparaison de la partie 2 est remplacée par la lecture en mémoire.
+
+#### Q4 — Nouveau signal `o_hdmi_tx_d`
+
+```vhdl
+o_hdmi_tx_d <= (others => s_rd_data(0));   -- blanc si le pixel a ete dessine, noir sinon
+```
+
+Le registre `r_pixel` de la partie 2 n'est plus nécessaire. La lecture en RAM ajoute déjà un cycle de retard, ce qui cale la donnée exactement sur `o_hdmi_tx_de`, lui aussi en retard d'un cycle dans le contrôleur. C'est le décalage repéré lors de la simulation HDMI (partie 1, Q1), qui se compense ici tout seul.
+
+**Simulation de l'alignement** : [`memorisation_tb.vhd`](3-tp/TP2-Projet_ecran/Memorisation/memorisation_tb.vhd), à lancer avec `do memorisation.do`.
+- Le testbench associe le vrai `hdmi_controler` et la vraie `dpram`, en résolution réduite (16 × 8) pour aller vite.
+- Il écrit 3 pixels, dont deux dans les coins (x = 0 et x = 15), puis reconstruit l'image vue par l'écran (les pixels où DE = 1).
+
+| Vérification | Attendu | Obtenu |
+|---|:---:|:---:|
+| Pixels affichés par image | 128 | 128 ✅ |
+| Pixels blancs | 3 | 3 ✅ |
+| Pixels à la mauvaise position | 0 | 0 ✅ |
+
+Pour s'assurer que ce test détecte vraiment un décalage, on l'a relancé en attendant volontairement les pixels une colonne plus loin : il signale alors 5 erreurs. Le résultat positif est donc fiable.
+
+**Compilation** :
+- 0 erreur ;
+- 230 ALM et **345 600 bits de mémoire dans 43 blocs M10K** : Quartus a bien placé la `dpram` dans les blocs mémoire (`altsyncram`) et ne l'a pas construite avec des bascules ;
+- marges de setup positives : 14,6 ns sur `i_clk_50` et 23,3 ns sur l'horloge à 27 MHz.
+
+> 📝 À compléter : capture des chronogrammes de `memorisation.do` dans `Memorisation/img/`.
+
+#### Q5 — Test sur carte
+
+Comportement attendu :
+- au démarrage, un point blanc en (0, 0) sur fond noir (la RAM démarre à 0 à la programmation) ;
+- l'encodeur gauche trace une ligne horizontale et l'encodeur droit une ligne verticale ;
+- le dessin reste affiché ;
+- `KEY0` ramène le stylet en (0, 0) mais **n'efface pas** le dessin, car la RAM n'a pas de reset (voir l'effacement).
+
+> 📝 À compléter : capture VLC d'un dessin et observations.
+
+#### Q6 — Démonstration à l'enseignant
+
+> 📝 À compléter.
+
 ---
 
-## Reste à faire
+## Séance 4 — Projet Écran magique : effacement
 
-- [x] Déplacement d'un pixel (encodeur gauche pour x, encodeur droit pour y), avec anti-rebond
-- [ ] Mémorisation : Q1 (mémoire dual-port), Q2 (schéma), instanciation de `dpram`
-- [ ] Effacement : Q1 (méthode), implémentation
+### Q1 — Comment effacer l'écran ?
+
+*Méthode prévue, à valider à l'implémentation.*
+
+**Pourquoi c'est plus compliqué qu'il n'y paraît :** une RAM n'a pas de reset global. Chaque port ne peut écrire **qu'une seule adresse par cycle d'horloge**. Pour effacer l'écran, il faut donc écrire un `0` dans chacune des 345 600 cases, l'une après l'autre.
+
+**Solution :** une petite **machine d'état** prend le contrôle du port A pendant l'effacement :
+
+| État | Adresse du port A | Donnée du port A | Passage à l'état suivant |
+|---|---|---|---|
+| `DESSIN` | position du stylet (`x + y × 720`) | `1` | appui sur le bouton → `EFFACEMENT` |
+| `EFFACEMENT` | compteur `r_clr_addr`, de 0 à 345 599 (+1 par cycle) | `0` | `r_clr_addr = 345 599` → `DESSIN` |
+
+- **Bouton** : celui de l'encodeur gauche (`i_left_pb`, `PIN_AH27`). Il est actif bas : `'1'` au repos, `'0'` quand on appuie (comme `pushl` au TP1). Il passe par le même synchroniseur et le même anti-rebond que les voies des encodeurs, puis par une détection de front, pour ne lancer qu'**un** effacement par appui.
+- **Multiplexeur** sur l'adresse et la donnée du port A, commandé par l'état.
+- **Durée** : 345 600 cycles à 27 MHz ≈ **12,8 ms**. C'est moins qu'une image (16,7 ms), donc l'effacement est quasi instantané à l'œil.
+- **Le port B continue de lire** pendant l'effacement : l'affichage n'est pas interrompu, il n'y a pas de conflit.
+
+### Q2 — Implémentation
+
+> 📝 À faire.
+
+### Q3 — Démonstration à l'enseignant
+
+> 📝 À faire.
+
+---
+
+## Suivi des questions de l'énoncé
+
+✅ répondu · 📝 à compléter (test, capture ou démonstration) · ⏳ pas encore traité
+
+| Partie | Question de l'énoncé | État | Où |
+|---|---|:---:|---|
+| **TP1** | Programmation : « Ça fonctionne ? » / comportement inversé | ✅ | [Premier projet](#premier-projet--un-bouton-allume-une-led) |
+| | Q1 Broche de `FPGA_CLK1_50` | ✅ | [Faire clignoter une LED](#faire-clignoter-une-led) |
+| | Q3/Q4 Schéma du code + comparaison avec le RTL Viewer | ✅ | idem |
+| | Q6/Q7/Q8 Réduction de fréquence, schéma, vérification RTL | ✅ | idem |
+| | Q9/Q10 Reset sur chaque registre, `KEY0` | ✅ | idem |
+| | Q11 Signification de `_n` | ✅ | idem |
+| | Chenillard (code + démonstration) | ✅ | [Chenillard](#chenillard) |
+| **Encodeurs** | Q2 Détection d'un front | ✅ | [Séance 2](#q2--détection-dun-front-montant-ou-descendant) |
+| | Q3 Implémentation | ✅ | [Q3](#q3--implémentation) |
+| | Q4 Simulation | ✅ | [Q4](#q4--simulation) |
+| | Q5/Q6 Test sur carte, démonstration | 📝 | [Q5](#q5--test-sur-carte) |
+| **HDMI** | Visualisation de la sortie HDMI (VLC) | ✅ | [Partie 1, Q6](#q6--test-sur-carte) |
+| | Q1 Simulation du contrôleur | ✅ | [Partie 1, Q1](#q1--simulation-du-contrôleur) |
+| | Q2/Q3/Q4 Ajout, instanciation, connexion des compteurs | ✅ | [Partie 1, Q2/Q3/Q4](#q2q3q4--intégration-dans-le-top) |
+| | Q5 Bits de chaque couleur | ✅ | [Partie 1, Q5](#q5--à-quels-bits-correspond-chaque-couleur-) |
+| | Q6 Compilation et test | ✅ (📝 effet de KEY0) | [Partie 1, Q6](#q6--test-sur-carte) |
+| | Q7 Démonstration à l'enseignant | 📝 | — |
+| **Déplacement d'un pixel** | Q1 Modification de `telecran.vhd` | ✅ | [Partie 2](#partie-2--déplacement-dun-pixel) |
+| | Q2 Test sur carte | ✅ (📝 observations de la vidéo) | [Partie 2, Q2](#q2--test-sur-carte-après-correction) |
+| | Q3 Démonstration à l'enseignant | 📝 | [Partie 2, Q3](#q3--démonstration-à-lenseignant) |
+| **Mémorisation** | Q1 Mémoire dual-port | ✅ | [Partie 3, Q1](#q1--quest-ce-quune-mémoire-dual-port-) |
+| | Q2 Schéma | ✅ | [Partie 3, Q2](#q2--schéma) |
+| | Q3 Instanciation de `dpram` | ✅ | [Partie 3, Q3](#q3--instanciation-de-dpram) |
+| | Q4 Modification de `o_hdmi_tx_d` | ✅ | [Partie 3, Q4](#q4--nouveau-signal-o_hdmi_tx_d) |
+| | Q5 Test sur carte | 📝 | [Partie 3, Q5](#q5--test-sur-carte-1) |
+| | Q6 Démonstration à l'enseignant | 📝 | — |
+| **Effacement** | Q1 Méthode | ✅ (méthode prévue) | [Séance 4, Q1](#q1--comment-effacer-lécran-) |
+| | Q2 Implémentation | ⏳ | — |
+| | Q3 Démonstration à l'enseignant | ⏳ | — |
 
 ---
 
@@ -346,6 +524,7 @@ Sans filtre, le compteur va **3 fois trop loin**. Avec le filtre, la valeur est 
 cd 3-tp/TP2-Projet_ecran/Encoder   ->  do encoder.do
 cd 3-tp/TP2-Projet_ecran/Encoder   ->  do encoder_rebonds.do   (anti-rebond)
 cd 3-tp/TP2-Projet_ecran/HDMI      ->  do hdmi_controler.do
+cd 3-tp/TP2-Projet_ecran/Memorisation  ->  do memorisation.do
 ```
 
 **Test sur carte (Quartus) :**
