@@ -84,6 +84,9 @@ architecture rtl of telecran is
     constant h_res : natural := 720;
     constant v_res : natural := 480;
 
+	-- Anti-rebond des encodeurs : 27 000 cycles a 27 MHz = 1 ms
+	constant c_debounce : natural := 27_000;
+
 	signal s_clk_27 : std_logic;
 	signal s_rst_n : std_logic;	-- holds reset as long as pll is not locked
 
@@ -145,6 +148,7 @@ begin
 		generic map (
 			g_width => 10,
 			g_saturate => true,
+			g_debounce => c_debounce,
 			g_max => h_res - 1
 		)
 		port map (
@@ -160,6 +164,7 @@ begin
 		generic map (
 			g_width => 10,
 			g_saturate => true,
+			g_debounce => c_debounce,
 			g_max => v_res - 1
 		)
 		port map (

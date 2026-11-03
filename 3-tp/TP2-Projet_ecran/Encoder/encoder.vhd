@@ -8,7 +8,10 @@ entity encoder is
         -- g_saturate = false : la valeur reboucle (0 -> 2**g_width-1 et inversement)
         -- g_saturate = true  : la valeur reste bloquée entre 0 et g_max
         g_saturate : boolean := false;
-        g_max : natural := 1023
+        g_max : natural := 1023;
+        -- Anti-rebond : un changement de A ou B n'est pris en compte que s'il
+        -- reste stable pendant g_debounce cycles d'horloge (0 = pas de filtre)
+        g_debounce : natural := 0
     );
     port (
         i_clk : in std_logic;
@@ -20,7 +23,18 @@ entity encoder is
 end entity encoder;
 
 architecture rtl of encoder is
-    
+
+    -- Synchroniseur 2 bascules (les voies A et B sont asynchrones)
+    signal r_a_meta : std_logic := '0';
+    signal r_a_sync : std_logic := '0';
+    signal r_b_meta : std_logic := '0';
+    signal r_b_sync : std_logic := '0';
+
+    -- Compteurs de stabilité de l'anti-rebond
+    signal r_a_cnt : natural range 0 to g_debounce := 0;
+    signal r_b_cnt : natural range 0 to g_debounce := 0;
+
+    -- Détecteur de fronts : d1 = valeur filtrée, d2 = valeur filtrée au cycle précédent
     signal r_a_d1 : std_logic := '0';
     signal r_a_d2 : std_logic := '0';
     signal r_b_d1 : std_logic := '0';
@@ -33,18 +47,49 @@ architecture rtl of encoder is
 
     signal r_value : unsigned(g_width-1 downto 0) := (others => '0');
 begin
-    
+
+    -- Synchronisation, anti-rebond, puis mémorisation pour la détection de fronts
     process(i_clk, i_rst_n)
     begin
         if (i_rst_n = '0') then
+            r_a_meta <= '0';
+            r_a_sync <= '0';
+            r_b_meta <= '0';
+            r_b_sync <= '0';
+            r_a_cnt <= 0;
+            r_b_cnt <= 0;
             r_a_d1 <= '0';
             r_a_d2 <= '0';
             r_b_d1 <= '0';
             r_b_d2 <= '0';
         elsif (rising_edge(i_clk)) then
-            r_a_d1 <= i_ch_a;
+            r_a_meta <= i_ch_a;
+            r_a_sync <= r_a_meta;
+            r_b_meta <= i_ch_b;
+            r_b_sync <= r_b_meta;
+
+            -- Voie A : la valeur filtrée ne change que si l'entrée est restée
+            -- différente pendant g_debounce cycles. Un rebond remet le compteur à 0.
+            if (r_a_sync = r_a_d1) then
+                r_a_cnt <= 0;
+            elsif (r_a_cnt = g_debounce) then
+                r_a_d1 <= r_a_sync;
+                r_a_cnt <= 0;
+            else
+                r_a_cnt <= r_a_cnt + 1;
+            end if;
+
+            -- Voie B : même principe
+            if (r_b_sync = r_b_d1) then
+                r_b_cnt <= 0;
+            elsif (r_b_cnt = g_debounce) then
+                r_b_d1 <= r_b_sync;
+                r_b_cnt <= 0;
+            else
+                r_b_cnt <= r_b_cnt + 1;
+            end if;
+
             r_a_d2 <= r_a_d1;
-            r_b_d1 <= i_ch_b;
             r_b_d2 <= r_b_d1;
         end if;
     end process;
@@ -54,7 +99,6 @@ begin
     s_b_rise <= r_b_d1 and not r_b_d2;
     s_b_fall <= not r_b_d1 and r_b_d2;
 
-    
     process(i_clk, i_rst_n)
     begin
         if (i_rst_n = '0') then
