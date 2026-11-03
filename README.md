@@ -176,7 +176,16 @@ Simulation dans ModelSim avec `do hdmi_controler.do` (dossier `3-tp/TP2-Projet_e
 
 **Observation :** `o_x_counter` est en avance d'un cycle sur `o_hdmi_de`, qui est registré. Une couleur calculée directement depuis `x` est donc décalée d'un pixel, ce qui ne se voit pas. Ce décalage sera compensé dans la partie Mémorisation par le cycle de latence de la lecture en RAM.
 
-> 📝 À compléter : capture des chronogrammes HS / VS / DE à comparer avec celles du TD.
+**Chronogrammes au début de la première image** (horloge du testbench : 10 ns, soit une ligne = 8,58 µs) :
+
+![Simulation du contrôleur HDMI : début de trame](3-tp/TP2-Projet_ecran/HDMI/img/simulation_debut_trame.png)
+
+**Observations :**
+- Au relâchement du reset, `o_hdmi_vs` passe à 0 pendant environ 50 µs, soit **6 lignes** : c'est l'impulsion de synchro verticale.
+- `o_hdmi_hs` et `r_h_active` produisent une impulsion à chaque ligne, tout au long de la simulation.
+- Tant que `r_v_active = 0`, il n'y a aucune impulsion sur `o_hdmi_de` ni sur `o_pixel_en`, et `o_y_counter` reste à 0. Ce sont les lignes de blanking vertical (sync + porch).
+- `r_v_active` passe à 1 vers **310 µs**, soit 36 lignes × 8,58 µs. C'est le début de la zone visible (`v_start` = 35). À partir de là, DE et `o_pixel_en` pulsent une fois par ligne, et `o_y_counter` s'incrémente à chaque ligne.
+- Au curseur (135 µs) : `r_h_count` = 634 donne `o_x_counter` = 634 − 120 = **514**. `r_v_count` = 15 est encore dans le blanking, donc `y` = 0 et `o_pixel_address` = 514 + 0 × 720 = 514. `x` continue de compter pendant le blanking vertical, mais ce n'est pas un problème car `o_pixel_en` = 0.
 
 ### Q2/Q3/Q4 — Intégration dans le top
 
