@@ -85,7 +85,14 @@ architecture rtl of telecran is
     constant v_res : natural := 480;
 
 	-- Anti-rebond des encodeurs : 27 000 cycles a 27 MHz = 1 ms
+	-- + decodage complet des transitions (g_full_decode) : une voie qui
+	-- oscille quand l'encodeur est immobile ne fait plus deriver la position
 	constant c_debounce : natural := 27_000;
+
+	-- Sensibilite des encodeurs : la position avance de 1 pixel toutes les
+	-- 2**c_div_log2 transitions (1 cycle de quadrature = 4 transitions)
+	--   1 : 2 pixels par cycle   2 : 1 pixel par cycle   3 : 1 pixel tous les 2 cycles
+	constant c_div_log2 : natural := 2;
 
 	signal s_clk_27 : std_logic;
 	signal s_rst_n : std_logic;	-- holds reset as long as pll is not locked
@@ -150,6 +157,8 @@ begin
 			g_width => 10,
 			g_saturate => true,
 			g_debounce => c_debounce,
+			g_full_decode => true,
+			g_div_log2 => c_div_log2,
 			g_max => h_res - 1
 		)
 		port map (
@@ -166,6 +175,8 @@ begin
 			g_width => 10,
 			g_saturate => true,
 			g_debounce => c_debounce,
+			g_full_decode => true,
+			g_div_log2 => c_div_log2,
 			g_max => v_res - 1
 		)
 		port map (

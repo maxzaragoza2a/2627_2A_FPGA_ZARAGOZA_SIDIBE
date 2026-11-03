@@ -11,7 +11,19 @@ entity encoder is
         g_max : natural := 1023;
         -- Anti-rebond : un changement de A ou B n'est pris en compte que s'il
         -- reste stable pendant g_debounce cycles d'horloge (0 = pas de filtre)
-        g_debounce : natural := 0
+        g_debounce : natural := 0;
+        -- g_full_decode = false : regle de l'enonce (seuls les fronts de A
+        --   incrementent et seuls les fronts de B decrementent)
+        -- g_full_decode = true  : decodage complet des 8 transitions (+1 ou -1
+        --   chacune). Une oscillation sur une seule voie s'annule au lieu de
+        --   s'accumuler.
+        g_full_decode : boolean := false;
+        -- Sensibilite en mode complet : la sortie avance de 1 toutes les
+        -- 2**g_div_log2 transitions (un cycle de quadrature = 4 transitions).
+        --   g_div_log2 = 1 : 2 pas par cycle (meme vitesse que l'enonce)
+        --   g_div_log2 = 2 : 1 pas par cycle
+        --   g_div_log2 = 3 : 1 pas tous les 2 cycles
+        g_div_log2 : natural := 1
     );
     port (
         i_clk : in std_logic;
@@ -46,6 +58,19 @@ architecture rtl of encoder is
     signal s_b_fall : std_logic;
 
     signal r_value : unsigned(g_width-1 downto 0) := (others => '0');
+
+    -- Decodage complet : position au quart de cycle (g_div_log2 bits de plus
+    -- que la sortie). Elle demarre et reste au MILIEU d'un pas de sortie :
+    -- une petite oscillation autour d'une position de repos ne fait donc pas
+    -- changer la sortie.
+    constant c_div : natural := 2**g_div_log2;
+    constant c_pos_min : natural := c_div / 2;                -- sortie = 0
+    constant c_pos_max : natural := g_max * c_div + c_div / 2; -- sortie = g_max
+
+    signal s_a_edge : std_logic;
+    signal s_b_edge : std_logic;
+    signal s_up : std_logic;
+    signal r_pos : unsigned(g_width + g_div_log2 - 1 downto 0) := to_unsigned(c_pos_min, g_width + g_div_log2);
 begin
 
     -- Synchronisation, anti-rebond, puis memorisation pour la detection de fronts
@@ -79,7 +104,7 @@ begin
                 r_a_cnt <= r_a_cnt + 1;
             end if;
 
-            -- Voie B : mAame principe
+            -- Voie B : meme principe
             if (r_b_sync = r_b_d1) then
                 r_b_cnt <= 0;
             elsif (r_b_cnt = g_debounce) then
@@ -99,6 +124,7 @@ begin
     s_b_rise <= r_b_d1 and not r_b_d2;
     s_b_fall <= not r_b_d1 and r_b_d2;
 
+    -- Regle de l'enonce
     process(i_clk, i_rst_n)
     begin
         if (i_rst_n = '0') then
@@ -116,5 +142,34 @@ begin
         end if;
     end process;
 
-    o_value <= std_logic_vector(r_value);
+    -- Decodage complet. Sens d'une transition (A en avance = +1) :
+    --   seule A change : +1 si A /= B apres le changement, -1 sinon
+    --   seule B change : +1 si A =  B apres le changement, -1 sinon
+    -- Si A et B changent en meme temps (transition impossible), on ignore.
+    s_a_edge <= s_a_rise or s_a_fall;
+    s_b_edge <= s_b_rise or s_b_fall;
+    s_up <= (r_a_d1 xor r_b_d1) when s_a_edge = '1' else not (r_a_d1 xor r_b_d1);
+
+    process(i_clk, i_rst_n)
+    begin
+        if (i_rst_n = '0') then
+            r_pos <= to_unsigned(c_pos_min, r_pos'length);
+        elsif (rising_edge(i_clk)) then
+            if (s_a_edge xor s_b_edge) = '1' then
+                if s_up = '1' then
+                    if (not g_saturate) or (r_pos < c_pos_max) then
+                        r_pos <= r_pos + 1;
+                    end if;
+                else
+                    if (not g_saturate) or (r_pos > c_pos_min) then
+                        r_pos <= r_pos - 1;
+                    end if;
+                end if;
+            end if;
+        end if;
+    end process;
+
+    -- Sortie : position divisee par 2**g_div_log2 en mode complet
+    o_value <= std_logic_vector(r_pos(r_pos'high downto g_div_log2)) when g_full_decode
+               else std_logic_vector(r_value);
 end architecture rtl;
