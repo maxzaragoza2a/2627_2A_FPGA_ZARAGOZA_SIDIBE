@@ -1,6 +1,6 @@
 # TP FPGA — Compte rendu global
 
-**Binôme :** Maxime Zaragoza — Sidibé
+**Binôme :** Maxime Zaragoza — Sidibé Francis Junior
 **Formation :** ENSEA, 2A — 2026/2027
 **Carte :** Terasic DE10-Nano (Cyclone V `5CSEBA6U23I7`) + carte mezzanine TELECRAN
 **Outils :** Quartus Prime Lite 24.1, ModelSim / Questa
