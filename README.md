@@ -29,7 +29,8 @@ L'énoncé est dans [`3-tp/fpga_tp.md`](3-tp/fpga_tp.md).
 │   └── Projet quartus/            projets Quartus
 ├── TP2-Projet_ecran/              projet Écran magique (simulations)
 │   ├── Encoder/                   encodeur : VHDL, testbench, .do, captures
-│   └── HDMI/                      contrôleur HDMI : testbench, .do
+│   ├── HDMI/                      contrôleur HDMI : testbench, .do, captures
+│   └── Deplacement_pixel/         déplacement d'un pixel avec les encodeurs
 └── telecran/telecran/             projet Quartus du télécran (top : telecran.vhd)
 ```
 
@@ -222,7 +223,17 @@ Le fichier [`telecran.sdc`](3-tp/telecran/telecran/telecran.sdc) déclarait l'ho
 
 ### Q6 — Test sur carte
 
-> 📝 À compléter : capture VLC de l'image obtenue et observations (dégradé, effet de KEY0).
+Le test a été fait sur la carte, avec l'adaptateur HDMI→USB et VLC (capture DirectShow) :
+
+![Affichage HDMI dans VLC](3-tp/TP2-Projet_ecran/HDMI/img/affichage_via_hdmi.png)
+
+**Observations :**
+- L'image est stable, sans scintillement ni défilement : les timings 480p sont bien acceptés par l'ADV7513 et par l'adaptateur.
+- Le coin en haut à gauche de chaque pavé est **noir**. Le **rouge** augmente vers la droite (x) et le **vert** vers le bas (y). Les zones où les deux sont forts virent au **jaune**. Il n'y a **pas de bleu**. Les bits sont donc bien attribués : rouge = 23–16, vert = 15–8, bleu = 7–0.
+- Horizontalement, il y a **3 pavés** : le rouge repart de 0 à x = 256 et x = 512 à cause du `mod 256`. Le 3e pavé est plus étroit et moins rouge, car il ne couvre que x = 512 à 719, soit 208 valeurs : le rouge s'arrête à 207 au lieu de 255.
+- Verticalement, il y a **2 pavés** : le vert repart de 0 à y = 256. Le 2e pavé est moins haut (y = 256 à 479, soit 224 lignes) et son vert va un peu moins loin.
+- Les bandes noires à gauche et à droite viennent de VLC, pas du FPGA : VLC affiche le 720×480 au format 4:3 du standard 480p, dont les pixels ne sont pas carrés.
+- 📝 À confirmer : un appui sur `KEY0` réinitialise la PLL et le contrôleur, donc l'image doit disparaître puis revenir à l'identique.
 
 ---
 
