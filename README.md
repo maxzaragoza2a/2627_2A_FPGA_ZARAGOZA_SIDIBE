@@ -17,6 +17,8 @@ L'énoncé est dans [`3-tp/fpga_tp.md`](3-tp/fpga_tp.md).
   - [Partie 2 — Déplacement d'un pixel](#partie-2--déplacement-dun-pixel)
   - [Partie 3 — Mémorisation](#partie-3--mémorisation)
 - [Séance 4 — Projet Écran magique : effacement](#séance-4--projet-écran-magique--effacement)
+  - [Amélioration de l'encodeur : décodage complet](#amélioration-de-lencodeur--décodage-complet)
+- [Bilan — architecture finale du télécran](#bilan--architecture-finale-du-télécran)
 - [Suivi des questions de l'énoncé](#suivi-des-questions-de-lénoncé)
 - [Annexe : simuler et tester](#annexe--simuler-et-tester)
 
@@ -35,7 +37,9 @@ L'énoncé est dans [`3-tp/fpga_tp.md`](3-tp/fpga_tp.md).
 │   ├── Encoder/                   encodeur : VHDL, testbench, .do, captures
 │   ├── HDMI/                      contrôleur HDMI : testbench, .do, captures
 │   ├── Deplacement_pixel/         déplacement d'un pixel : top telecran.vhd, schéma, vidéo
-│   └── Memorisation/              mémorisation : top telecran.vhd avec framebuffer, testbench
+│   ├── Memorisation/              mémorisation : top telecran.vhd final (framebuffer + effacement), testbench
+│   ├── Effacement/                effacement : machine d'état, testbench, .do, top telecran.vhd
+│   └── bilan_telecran/            bilan : schéma d'architecture, notes, vidéo du projet final
 └── telecran/telecran/             projet Quartus du télécran (top : telecran.vhd)
 ```
 
@@ -289,7 +293,7 @@ o_hdmi_tx_d <= r_pixel;
   - `Equal0` compare x à `o_x_counter` ;
   - `Equal1` compare y à `o_y_counter`. Ce compteur ne fait que 9 bits, Quartus complète donc le 10e bit par un 0 (symbole de masse).
 - La porte ET (`process_0`) combine les deux égalités. Sa sortie entre dans le registre `r_pixel[23..0]` (24 bits identiques, donc blanc ou noir), qui pilote `o_hdmi_tx_d`. Le reset asynchrone (CLRN) de ce registre vient de `locked`.
-- `i_left_pb` et `i_right_pb` (boutons des encodeurs) ne sont reliés à rien pour l'instant. L'un d'eux servira à l'effacement.
+- `i_left_pb` et `i_right_pb` (boutons des encodeurs) ne sont reliés à rien à cette étape. Le bouton gauche sert ensuite à l'effacement (séance 4).
 
 #### Premier test sur carte : déplacement erratique
 
@@ -447,13 +451,15 @@ Comportement attendu :
 - au démarrage, un point blanc en (0, 0) sur fond noir (la RAM démarre à 0 à la programmation) ;
 - l'encodeur gauche trace une ligne horizontale et l'encodeur droit une ligne verticale ;
 - le dessin reste affiché ;
-- `KEY0` ramène le stylet en (0, 0) mais **n'efface pas** le dessin, car la RAM n'a pas de reset (voir l'effacement).
+- `KEY0` ramène le stylet en (0, 0) mais **n'efface pas** le dessin, car la RAM n'a pas de reset (voir l'effacement). Dans la version finale, l'effacement démarre aussi au reset : `KEY0` efface donc l'écran.
 
-> 📝 À compléter : capture VLC d'un dessin et observations.
+**Observation sur carte :** pour une même vitesse de rotation, le point se déplaçait à une vitesse irrégulière, tantôt vite, tantôt lentement, parfois au cours d'une même rotation. Le défaut a disparu avec la version finale du top, qui intègre l'effacement et un framebuffer généré par Quartus (voir la séance 4). La cause exacte n'a pas été isolée.
+
+▶️ [Vidéo d'un dessin sur l'écran (capture VLC)](3-tp/TP2-Projet_ecran/bilan_telecran/IMG_6008.mov) (GitHub ne lit pas la vidéo dans la page : cliquer sur le lien puis sur *View raw* pour la télécharger)
 
 #### Q6 — Démonstration à l'enseignant
 
-> 📝 À compléter.
+Fait. 
 
 ---
 
@@ -461,16 +467,16 @@ Comportement attendu :
 
 ### Q1 — Comment effacer l'écran ?
 
-*Méthode prévue, à valider à l'implémentation.*
-
 **Pourquoi c'est plus compliqué qu'il n'y paraît :** une RAM n'a pas de reset global. Chaque port ne peut écrire **qu'une seule adresse par cycle d'horloge**. Pour effacer l'écran, il faut donc écrire un `0` dans chacune des 345 600 cases, l'une après l'autre.
 
 **Solution :** une petite **machine d'état** prend le contrôle du port A pendant l'effacement :
 
 | État | Adresse du port A | Donnée du port A | Passage à l'état suivant |
 |---|---|---|---|
-| `DESSIN` | position du stylet (`x + y × 720`) | `1` | appui sur le bouton → `EFFACEMENT` |
-| `EFFACEMENT` | compteur `r_clr_addr`, de 0 à 345 599 (+1 par cycle) | `0` | `r_clr_addr = 345 599` → `DESSIN` |
+| `ST_DRAW` (dessin) | position du stylet (`x + y × 720`) | `1` | appui sur le bouton → `ST_CLEAR` |
+| `ST_CLEAR` (effacement) | compteur `r_clr_addr`, de 0 à 345 599 (+1 par cycle) | `0` | `r_clr_addr = 345 599` → `ST_DRAW` |
+
+L'état initial est `ST_CLEAR` : l'écran est aussi effacé au démarrage et à chaque reset.
 
 - **Bouton** : celui de l'encodeur gauche (`i_left_pb`, `PIN_AH27`). Il est actif bas : `'1'` au repos, `'0'` quand on appuie (comme `pushl` au TP1). Il passe par le même synchroniseur et le même anti-rebond que les voies des encodeurs, puis par une détection de front, pour ne lancer qu'**un** effacement par appui.
 - **Multiplexeur** sur l'adresse et la donnée du port A, commandé par l'état.
@@ -479,65 +485,171 @@ Comportement attendu :
 
 ### Q2 — Implémentation
 
-> 📝 À faire.
+Code : [`Effacement/effacement.vhd`](3-tp/TP2-Projet_ecran/Effacement/effacement.vhd). Le composant est intégré dans le top final [`Memorisation/telecran.vhd`](3-tp/TP2-Projet_ecran/Memorisation/telecran.vhd). [`Effacement/telecran.vhd`](3-tp/TP2-Projet_ecran/Effacement/telecran.vhd) est la même intégration avec la `dpram` fournie.
+
+Le composant `effacement` pilote le port d'écriture du framebuffer. Il a trois parties :
+
+**1. Le bouton** passe par la même chaîne que les voies des encodeurs : synchroniseur à 2 bascules, puis anti-rebond (`g_debounce` = 27 000 cycles = 1 ms), puis détection du **front descendant**, car le bouton est actif bas. Un appui produit une impulsion d'un seul cycle, `s_pb_press`. Un appui long ne lance donc qu'un seul effacement, et le relâchement n'en lance aucun.
+
+**2. La machine d'état** à deux états :
+
+```vhdl
+case r_state is
+    when ST_CLEAR =>
+        if (r_clr_addr = g_mem_size - 1) then
+            r_clr_addr <= 0;
+            r_state <= ST_DRAW;           -- toutes les cases sont a 0
+        else
+            r_clr_addr <= r_clr_addr + 1; -- case suivante
+        end if;
+
+    when ST_DRAW =>
+        if (s_pb_press = '1') then
+            r_clr_addr <= 0;
+            r_state <= ST_CLEAR;          -- appui : on recommence a effacer
+        end if;
+end case;
+```
+
+**3. Le multiplexeur** du port d'écriture, commandé par l'état :
+
+```vhdl
+o_addr <= r_clr_addr when r_state = ST_CLEAR else i_draw_addr;
+o_data <= "0"        when r_state = ST_CLEAR else "1";
+o_busy <= '1'        when r_state = ST_CLEAR else '0';
+```
+
+**Intégration dans le top.** L'adresse du stylet `s_wr_addr` n'est plus reliée directement à la RAM : elle entre dans `effacement`, qui fournit l'adresse et la donnée du port d'écriture (`s_a_addr`, `s_a_data`). Le bouton est celui de l'encodeur gauche (`i_left_pb`).
+
+```vhdl
+effacement0 : entity work.effacement
+    generic map (g_mem_size => h_res * v_res, g_debounce => c_debounce)
+    port map (
+        i_clk => s_clk_27, i_rst_n => s_rst_n, i_pb_n => i_left_pb,
+        i_draw_addr => s_wr_addr,
+        o_addr => s_a_addr, o_data => s_a_data, o_busy => open
+    );
+```
+
+**Framebuffer de la version finale.** Dans le top final, la `dpram` fournie est remplacée par une RAM générée avec l'**IP Catalog** de Quartus. C'est une *simple dual-port* : un port d'écriture, un port de lecture, une seule horloge, et des adresses en `std_logic_vector` sur 19 bits (2¹⁹ ≥ 345 600). Les deux rôles ne changent pas : on écrit pour le stylet ou l'effacement, et on lit pour le HDMI.
+
+```vhdl
+framebuffer : entity work.dpram
+    port map (
+        clock     => s_clk_27,
+        wraddress => std_logic_vector(to_unsigned(s_a_addr, 19)),
+        data      => s_a_data,
+        wren      => '1',
+        rdaddress => std_logic_vector(to_unsigned(s_rd_addr, 19)),
+        q         => s_rd_data
+    );
+```
+
+
+**Simulation** : [`effacement_tb.vhd`](3-tp/TP2-Projet_ecran/Effacement/effacement_tb.vhd), à lancer avec `do effacement.do`.
+- Le testbench relie le composant `effacement` à la vraie `dpram`, réduite à 32 cases, avec un anti-rebond de 10 cycles.
+- Après chaque étape, il relit **toute** la mémoire par le port B et vérifie quelles cases sont à `1`.
+
+| Étape | Attendu | Obtenu |
+|---|:---:|:---:|
+| Effacement au reset (la RAM de simulation part à `U`) | 32 cycles | 32 ✅ |
+| Après le reset, stylet en 0 | 1 case à `1` | 1 ✅ |
+| Dessin : stylet en 0, 3, 10, 31 | 4 cases à `1` | 4 ✅ |
+| Appui avec 3 rebonds, maintenu longtemps, puis relâché avec rebonds | 1 effacement | 1 ✅ |
+| Après l'effacement, stylet resté en 31 | 1 case à `1` | 1 ✅ |
+| Nouveau trait en 7 | 2 cases à `1` | 2 ✅ |
+| Nouveau reset | 1 case à `1` | 1 ✅ |
+
+ModelSim : 0 erreur, aucune assertion en échec.
+
+À 27 MHz, l'effacement complet dure 345 600 cycles ≈ 12,8 ms, moins d'une image (16,7 ms). Pendant ce temps, le stylet est ignoré, mais la lecture par le HDMI continue normalement.
+
+### Amélioration de l'encodeur : décodage complet
+
+**Problème :** même avec l'anti-rebond, la position pouvait **dériver** alors que l'encodeur était immobile. Quand un encodeur s'arrête entre deux crans, une voie peut osciller lentement. Ce n'est pas un rebond, puisque chaque état dure plus que le filtre de 1 ms. Avec la règle de l'énoncé, ces oscillations s'accumulent. Par exemple, une oscillation de A avec B = 0 :
+- front montant de A : +1 ;
+- front descendant de A : aucune règle, donc rien ;
+- front montant suivant : encore +1.
+
+**Solution :** un **décodage complet** des 8 transitions possibles de (A, B), ajouté dans [`encoder.vhd`](3-tp/TP2-Projet_ecran/Encoder/encoder.vhd) (generic `g_full_decode`). Chaque transition compte +1 ou −1 selon le sens :
+- si seule A change : +1 si A ≠ B après le changement, −1 sinon ;
+- si seule B change : +1 si A = B après le changement, −1 sinon ;
+- si A et B changent en même temps (transition impossible), la transition est ignorée.
+
+Un aller-retour sur une seule voie donne alors +1 puis −1, ce qui s'annule.
+
+**Sensibilité réglable** (`g_div_log2`) : la position interne compte les transitions, et la sortie vaut `position / 2^g_div_log2`. Dans le top, `g_div_log2 = 2` donne **1 pixel par cycle de quadrature**, soit 4 transitions. La position interne démarre au **milieu** d'un pas de sortie : une petite oscillation autour d'une position de repos ne change pas la sortie.
+
+**Simulation** : [`encoder_vibration_tb.vhd`](3-tp/TP2-Projet_ecran/Encoder/encoder_vibration_tb.vhd), à lancer avec `do encoder_vibration.do`. Les mêmes signaux, avec le même anti-rebond, sont envoyés à un encodeur qui applique la règle de l'énoncé et à un encodeur en décodage complet :
+
+| Séquence | Attendu | Règle de l'énoncé | Décodage complet |
+|---|:---:|:---:|:---:|
+| 4 cycles à droite | 8 | 8 | 8 ✅ |
+| puis 10 oscillations de A, encodeur immobile | 8 | **18** | 8 ✅ |
+| puis 5 oscillations de B, encodeur immobile | 8 | **13** | 8 ✅ |
+| puis 4 cycles à gauche | 0 | **5** | 0 ✅ |
+
+- Avec `g_div_log2 = 2`, la sortie vaut 4 après 4 cycles et **ne varie pas du tout** pendant les oscillations.
+- La saturation est respectée : la valeur reste bloquée à 0 puis à `g_max`.
+- ModelSim : 0 erreur.
 
 ### Q3 — Démonstration à l'enseignant
 
-> 📝 À faire.
+▶️ [Vidéo du projet final](3-tp/TP2-Projet_ecran/bilan_telecran/IMG_6008.mov) (GitHub ne lit pas la vidéo dans la page : cliquer sur le lien puis sur *View raw* pour la télécharger)
+
 
 ---
 
-## Suivi des questions de l'énoncé
+## Bilan — architecture finale du télécran
 
-✅ répondu · 📝 à compléter (test, capture ou démonstration) · ⏳ pas encore traité
+Le schéma ci-dessous, fait à la main, résume l'architecture du top final [`Memorisation/telecran.vhd`](3-tp/TP2-Projet_ecran/Memorisation/telecran.vhd). Le cadre jaune délimite le domaine d'horloge unique à 27 MHz.
 
-| Partie | Question de l'énoncé | État | Où |
-|---|---|:---:|---|
-| **TP1** | Programmation : « Ça fonctionne ? » / comportement inversé | ✅ | [Premier projet](#premier-projet--un-bouton-allume-une-led) |
-| | Q1 Broche de `FPGA_CLK1_50` | ✅ | [Faire clignoter une LED](#faire-clignoter-une-led) |
-| | Q3/Q4 Schéma du code + comparaison avec le RTL Viewer | ✅ | idem |
-| | Q6/Q7/Q8 Réduction de fréquence, schéma, vérification RTL | ✅ | idem |
-| | Q9/Q10 Reset sur chaque registre, `KEY0` | ✅ | idem |
-| | Q11 Signification de `_n` | ✅ | idem |
-| | Chenillard (code + démonstration) | ✅ | [Chenillard](#chenillard) |
-| **Encodeurs** | Q2 Détection d'un front | ✅ | [Séance 2](#q2--détection-dun-front-montant-ou-descendant) |
-| | Q3 Implémentation | ✅ | [Q3](#q3--implémentation) |
-| | Q4 Simulation | ✅ | [Q4](#q4--simulation) |
-| | Q5/Q6 Test sur carte, démonstration | 📝 | [Q5](#q5--test-sur-carte) |
-| **HDMI** | Visualisation de la sortie HDMI (VLC) | ✅ | [Partie 1, Q6](#q6--test-sur-carte) |
-| | Q1 Simulation du contrôleur | ✅ | [Partie 1, Q1](#q1--simulation-du-contrôleur) |
-| | Q2/Q3/Q4 Ajout, instanciation, connexion des compteurs | ✅ | [Partie 1, Q2/Q3/Q4](#q2q3q4--intégration-dans-le-top) |
-| | Q5 Bits de chaque couleur | ✅ | [Partie 1, Q5](#q5--à-quels-bits-correspond-chaque-couleur-) |
-| | Q6 Compilation et test | ✅ (📝 effet de KEY0) | [Partie 1, Q6](#q6--test-sur-carte) |
-| | Q7 Démonstration à l'enseignant | 📝 | — |
-| **Déplacement d'un pixel** | Q1 Modification de `telecran.vhd` | ✅ | [Partie 2](#partie-2--déplacement-dun-pixel) |
-| | Q2 Test sur carte | ✅ (📝 observations de la vidéo) | [Partie 2, Q2](#q2--test-sur-carte-après-correction) |
-| | Q3 Démonstration à l'enseignant | 📝 | [Partie 2, Q3](#q3--démonstration-à-lenseignant) |
-| **Mémorisation** | Q1 Mémoire dual-port | ✅ | [Partie 3, Q1](#q1--quest-ce-quune-mémoire-dual-port-) |
-| | Q2 Schéma | ✅ | [Partie 3, Q2](#q2--schéma) |
-| | Q3 Instanciation de `dpram` | ✅ | [Partie 3, Q3](#q3--instanciation-de-dpram) |
-| | Q4 Modification de `o_hdmi_tx_d` | ✅ | [Partie 3, Q4](#q4--nouveau-signal-o_hdmi_tx_d) |
-| | Q5 Test sur carte | 📝 | [Partie 3, Q5](#q5--test-sur-carte-1) |
-| | Q6 Démonstration à l'enseignant | 📝 | — |
-| **Effacement** | Q1 Méthode | ✅ (méthode prévue) | [Séance 4, Q1](#q1--comment-effacer-lécran-) |
-| | Q2 Implémentation | ⏳ | — |
-| | Q3 Démonstration à l'enseignant | ⏳ | — |
+![Architecture du télécran](3-tp/TP2-Projet_ecran/bilan_telecran/198a06fc-4de0-46cc-958b-6da83bcabe1b.jpeg)
+
+Le fonctionnement se lit en trois chemins :
+- **L'horloge** : la PLL produit le 27 MHz (`s_clk_27`) et le reset `s_rst_n` = `locked`. Seule la configuration I2C de l'ADV7513 reste à 50 MHz.
+- **L'écriture** : les encodeurs donnent x et y. Le bloc « adresse » calcule `x + y × 720`, la position du pixel dans la RAM rangée ligne par ligne. Le bloc `effacement` choisit ensuite ce qui est écrit : `1` à l'adresse du stylet, ou `0` partout pendant un effacement.
+- **La lecture** : `hdmi_controler` balaye l'écran et lit la RAM à la même convention d'adresse (`o_pixel_address`). Le bit lu est recopié sur les 24 bits de couleur, ce qui donne du blanc ou du noir.
+
+Notes de synthèse :
+
+![Notes : construction et blocs remarquables](3-tp/TP2-Projet_ecran/bilan_telecran/44a94de8-f764-487e-8b7a-50eb0cab4cf4.jpeg)
+
+### Construction pas à pas
+
+Chaque étape ajoute **un seul bloc** au top. On le simule, puis on le teste sur la carte avant de passer à la suivante :
+
+1. **Lire les encodeurs** : on transforme les deux signaux A/B en une position x ou y. Simulation, puis vérification sur les LED.
+2. **Afficher** : le contrôleur HDMI balaye l'écran à 27 MHz et donne les coordonnées du pixel en cours. Test avec un dégradé de couleurs.
+3. **Relier les deux** : on compare la position de l'encodeur au pixel balayé. S'ils sont égaux, le pixel est blanc : on obtient un point mobile.
+4. **Mémoriser** : on remplace la comparaison par une RAM. Le stylet écrit, le HDMI lit, et le point laisse une trace.
+5. **Effacer** : une machine d'état prend temporairement le contrôle de l'écriture dans la RAM.
+
+Chaque problème rencontré a amené un bloc de plus :
+- déplacement erratique → anti-rebond ;
+- pixel décalé → alignement des latences ;
+- position qui dérive → décodage complet.
+
+### Blocs remarquables
+
+| Bloc | Où | Rôle |
+|---|---|---|
+| **PLL** | top | Produit le 27 MHz du 480p à partir du 50 MHz. `locked` sert de reset : rien ne démarre avant que l'horloge soit stable. |
+| **Synchroniseur (2 bascules D en série)** | encodeur, effacement | A, B et le bouton sont asynchrones. La 1re bascule peut devenir métastable ; elle a une période entière (37 ns) pour se stabiliser avant d'être lue par la 2e. |
+| **Anti-rebond (compteur + bascule D)** | encodeur, effacement | Un changement n'est accepté que s'il reste stable pendant 1 ms (27 000 cycles). Chaque rebond remet le compteur à 0. |
+| **Détecteur de fronts (bascule D + porte ET)** | encodeur, effacement | Compare la valeur actuelle à celle du cycle précédent : `d1 and not d2` détecte un front montant, `not d1 and d2` un front descendant. Le résultat est une impulsion d'un cycle, utilisée comme *enable*. |
+| **Compteur avec saturation** | encodeur | +1 ou −1 selon le sens de rotation, bloqué entre 0 et 719 (ou 0 et 479). |
+| **Compteurs imbriqués** | contrôleur HDMI | x compte de 0 à 857, et y avance à chaque fin de ligne. Des comparaisons sur x et y génèrent hs, vs et de. |
+| **Multiplieur + additionneur** | top | Adresse `x + y × 720` : passage des coordonnées 2D à l'adresse 1D de la RAM. |
+| **RAM double port (M10K)** | framebuffer | 1 bit par pixel (345 600 bits, 43 blocs M10K ; en 24 bits, l'image ne tiendrait pas dans le FPGA). Un port écrit, l'autre lit, en parallèle et sans conflit. |
+| **Machine d'état à 2 états** | effacement | `ST_CLEAR` écrit des 0 sur toutes les adresses, `ST_DRAW` rend la main au stylet. |
+| **Multiplexeur** | effacement | Selon l'état, l'adresse et la donnée envoyées à la RAM viennent du compteur d'effacement ou du stylet. |
+
+### Principes appliqués partout
+
+- **Un seul domaine d'horloge** (27 MHz) et un reset asynchrone actif bas : aucune donnée ne passe d'une horloge à une autre.
+- **Toute entrée externe** passe par synchronisation, puis anti-rebond, puis détection de front.
+- **Les latences sont alignées** : la RAM a 1 cycle de retard, `de` aussi, donc le pixel tombe en phase sans registre supplémentaire.
+- **Des generics** (`g_debounce`, `g_mem_size`, `g_max`…) permettent de simuler en petit (RAM de 32 cases, anti-rebond de 10 cycles) avec le même code que celui synthétisé.
 
 ---
-
-## Annexe : simuler et tester
-
-**Simulation (ModelSim) :** se placer dans le dossier du composant et lancer le script `.do` :
-```
-cd 3-tp/TP2-Projet_ecran/Encoder   ->  do encoder.do
-cd 3-tp/TP2-Projet_ecran/Encoder   ->  do encoder_rebonds.do   (anti-rebond)
-cd 3-tp/TP2-Projet_ecran/HDMI      ->  do hdmi_controler.do
-cd 3-tp/TP2-Projet_ecran/Memorisation  ->  do memorisation.do
-```
-
-**Test sur carte (Quartus) :**
-1. Ouvrir `3-tp/telecran/telecran/telecran.qpf`, puis lancer *Compile Design*.
-2. Brancher l'alimentation, le port USB BLASTER II, et le câble HDMI vers l'adaptateur HDMI-USB.
-3. *Tools > Programmer* > *Auto Detect* > choisir `5CSEBA6` > *Change File* : `output_files/telecran.sof` > cocher *Program/Configure* > *Start*.
-4. Dans VLC : *Media > Open Capture Device* > DirectShow > choisir l'adaptateur.
-5. Si VLC affiche « pas de signal », appuyer sur `KEY0`. Le reset relance la configuration I2C de l'ADV7513.
